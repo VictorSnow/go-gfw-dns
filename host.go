@@ -42,7 +42,7 @@ func inHost(host string) bool {
 				lock.Lock()
 				defer lock.Unlock()
 				Hosts[rhost] = 1
-				ioutil.WriteFile("host.txt", []byte("\n"+rhost), os.ModeAppend)
+				//ioutil.WriteFile("host.txt", []byte("\n"+rhost), os.ModeAppend)
 			}
 			return true
 		}
