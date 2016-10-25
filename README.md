@@ -1,0 +1,2 @@
+# myDns
+dns
