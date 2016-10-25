@@ -12,11 +12,20 @@ func tunnelClientServe(address string, dest string) {
 	laddr, _ := net.ResolveUDPAddr("udp", address)
 	daddr, _ := net.ResolveUDPAddr("udp", dest)
 
-	sConn, _ := net.ListenUDP("udp", laddr)
+	sConn, err := net.ListenUDP("udp", laddr)
+
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
 	for {
 		buff := make([]byte, 2048)
-		n, addr, _ := sConn.ReadFromUDP(buff)
+		n, addr, err := sConn.ReadFromUDP(buff)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
 
 		go tunnel(sConn, addr, daddr, buff, n)
 	}
@@ -61,11 +70,20 @@ func tunnelServerServe(address string, dest string) {
 	laddr, _ := net.ResolveUDPAddr("udp", address)
 	daddr, _ := net.ResolveUDPAddr("udp", dest)
 
-	sConn, _ := net.ListenUDP("udp", laddr)
+	sConn, err := net.ListenUDP("udp", laddr)
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
 	for {
 		buff := make([]byte, 2048)
-		n, addr, _ := sConn.ReadFromUDP(buff)
+		n, addr, err := sConn.ReadFromUDP(buff)
+
+		if err != nil {
+			log.Println(err)
+			continue
+		}
 
 		go tunnel(sConn, addr, daddr, buff, n)
 	}

@@ -4,35 +4,50 @@ import (
 	"errors"
 	"log"
 	"net"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/pmylund/go-cache"
 )
 
 const DNS_TIMEOUT = 20 * time.Second
-const DNS_PLUS = 500
+const DNS_CACHE_INTERVAL = 24 * 365 * 60 * 60
+const DNS_SAVE_INTERVAL = 60 * 60
 
 type dnsRecord struct {
-	name   string
-	ip     net.IP
-	expire time.Time
+	Name   string
+	Ip     net.IP
+	Expire time.Time
 }
 
-type dnsCache struct {
-	items map[string]*dnsRecord
-	lock  sync.Mutex
-}
-
-var DnsCache dnsCache
 var bypassServers []string
 var inDoorServers []string
+var cdns *cache.Cache
 
 func ListenAndServe(address string, inDoor []string, byPass []string) {
 	inDoorServers = inDoor
 	bypassServers = byPass
 
-	DnsCache = dnsCache{make(map[string]*dnsRecord), sync.Mutex{}}
+	// 缓存文件
+	cdns = cache.New(time.Second*time.Duration(DNS_CACHE_INTERVAL), time.Second*60)
+	cdns.LoadFile("data.txt")
+	defer func() {
+		cdns.SaveFile("data.txt")
+	}()
+
+	// catch exit
+	saveSig := make(chan os.Signal)
+	go func() {
+		select {
+		case <-saveSig:
+			cdns.SaveFile("data.txt")
+		}
+	}()
+	signal.Notify(saveSig, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGABRT)
 
 	udpHandler := dns.NewServeMux()
 	udpHandler.HandleFunc(".", dnsHandle)
@@ -46,19 +61,6 @@ func ListenAndServe(address string, inDoor []string, byPass []string) {
 		WriteTimeout: DNS_TIMEOUT,
 	}
 
-	// 清理过期的记录
-	go func() {
-		for {
-			DnsCache.lock.Lock()
-			for k, v := range DnsCache.items {
-				if v.expire.Before(time.Now()) {
-					delete(DnsCache.items, k)
-				}
-			}
-			DnsCache.lock.Unlock()
-			time.Sleep(120 * time.Second)
-		}
-	}()
 	err := udpServer.ListenAndServe()
 	if err != nil {
 		log.Println("服务错误", err)
@@ -66,29 +68,20 @@ func ListenAndServe(address string, inDoor []string, byPass []string) {
 }
 
 func removeRecord(qname string) {
-	DnsCache.lock.Lock()
-	defer DnsCache.lock.Unlock()
-	delete(DnsCache.items, qname)
+	cdns.Delete(qname)
 }
 
-func getRecord(qname string) *dnsRecord {
-	if r, ok := DnsCache.items[qname]; ok {
-		if r.expire.After(time.Now()) {
-			return r
-		} else {
-			DnsCache.lock.Lock()
-			defer DnsCache.lock.Unlock()
-			delete(DnsCache.items, qname)
-		}
+func getRecord(qname string) (dnsRecord, bool) {
+	r, ok := cdns.Get(qname)
+	if ok {
+		rd, ok := r.(dnsRecord)
+		return rd, ok
 	}
-	return nil
+	return dnsRecord{}, false
 }
 
-func addRecord(qname string, record *dnsRecord) {
-	DnsCache.lock.Lock()
-	defer DnsCache.lock.Unlock()
-
-	DnsCache.items[qname] = record
+func addRecord(qname string, record dnsRecord) {
+	cdns.Add(qname, record, DNS_CACHE_INTERVAL*time.Second)
 }
 
 func resolve(server string, req *dns.Msg) (*dnsRecord, error) {
@@ -114,7 +107,7 @@ func resolve(server string, req *dns.Msg) (*dnsRecord, error) {
 	for _, v := range r.Answer {
 		if a, ok := v.(*dns.A); ok {
 			if ip := a.A.To4(); ip != nil {
-				expire := time.Now().Add(time.Duration(a.Hdr.Ttl*DNS_PLUS) * time.Second)
+				expire := time.Now().Add(time.Duration(DNS_CACHE_INTERVAL) * time.Second)
 				return &dnsRecord{qname, ip, expire}, nil
 			}
 		}
@@ -122,29 +115,29 @@ func resolve(server string, req *dns.Msg) (*dnsRecord, error) {
 	return nil, errors.New("ipv4地址错误")
 }
 
-func doResolve(server string, req *dns.Msg, recvChan chan<- *dnsRecord, wg *sync.WaitGroup) {
+func doResolve(server string, req *dns.Msg, recvChan chan<- dnsRecord, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	r, _ := resolve(server, req)
 	// try send or ignore
 	if r != nil {
 		select {
-		case recvChan <- r:
+		case recvChan <- *r:
 		default:
 		}
 	}
 }
 
-func responseRecord(w dns.ResponseWriter, req *dns.Msg, record *dnsRecord) {
-	ip := record.ip.To4()
+func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
+	ip := record.Ip.To4()
 
 	a := &dns.A{
 		Hdr: dns.RR_Header{
-			Name:     record.name,
+			Name:     record.Name,
 			Rrtype:   dns.TypeA,
 			Class:    dns.ClassINET,
 			Rdlength: uint16(len(ip)),
-			Ttl:      uint32(record.expire.Sub(time.Now()).Seconds()),
+			Ttl:      uint32(record.Expire.Sub(time.Now()).Seconds()),
 		},
 		A: ip,
 	}
@@ -181,12 +174,14 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 
 	// only handle  A record and hit cache
 	if req.Question[0].Qtype == dns.TypeA {
-		if record := getRecord(qname); record != nil {
-			responseRecord(w, req, record)
+		if record, ok := getRecord(qname); ok {
+			if record.Expire.Before(time.Now()) {
+				responseRecord(w, req, record)
+			}
 		}
 	}
 
-	recvChan := make(chan *dnsRecord, 1)
+	recvChan := make(chan dnsRecord, 1)
 	defer close(recvChan)
 
 	var wg = &sync.WaitGroup{}
@@ -206,6 +201,9 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 		addRecord(qname, r)
 		responseRecord(w, req, r)
 	case <-time.After(DNS_TIMEOUT):
+		if record, ok := getRecord(qname); ok {
+			responseRecord(w, req, record)
+		}
 		break
 	}
 
