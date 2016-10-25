@@ -14,7 +14,7 @@ import (
 	"github.com/pmylund/go-cache"
 )
 
-const DNS_TIMEOUT = 2 * time.Second
+const DNS_TIMEOUT = 5 * time.Second
 const DNS_CACHE_INTERVAL = 24 * 365 * 60 * 60
 const DNS_SAVE_INTERVAL = 60 * 60
 
@@ -175,7 +175,7 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 	// only handle  A record and hit cache
 	if req.Question[0].Qtype == dns.TypeA {
 		if record, ok := getRecord(qname); ok {
-			if record.Expire.Before(time.Now()) {
+			if record.Expire.After(time.Now()) {
 				responseRecord(w, req, record)
 			}
 		}
