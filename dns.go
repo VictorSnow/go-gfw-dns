@@ -10,7 +10,8 @@ import (
 	"github.com/miekg/dns"
 )
 
-const DNS_TIMEOUT = 2 * time.Second
+const DNS_TIMEOUT = 20 * time.Second
+const DNS_PLUS = 500
 
 type dnsRecord struct {
 	name   string
@@ -113,7 +114,7 @@ func resolve(server string, req *dns.Msg) (*dnsRecord, error) {
 	for _, v := range r.Answer {
 		if a, ok := v.(*dns.A); ok {
 			if ip := a.A.To4(); ip != nil {
-				expire := time.Now().Add(time.Duration(a.Hdr.Ttl) * time.Second)
+				expire := time.Now().Add(time.Duration(a.Hdr.Ttl*DNS_PLUS) * time.Second)
 				return &dnsRecord{qname, ip, expire}, nil
 			}
 		}
