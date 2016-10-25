@@ -3,75 +3,68 @@ package main
 import (
 	"log"
 	"net"
-	"sync"
 	"time"
 )
 
 const TUNNEL_TIMEOUT = 2 * time.Second
 
 func tunnelClientServe(address string, dest string) {
-	l, e := net.Listen("udp", address)
+	laddr, _ := net.ResolveUDPAddr("udp", address)
+	daddr, _ := net.ResolveUDPAddr("udp", dest)
 
-	if e != nil {
-		log.Println(e)
-		return
-	}
+	sConn, _ := net.ListenUDP("udp", laddr)
 
 	for {
-		n, _ := l.Accept()
-		go tunnelClientHandle(n, dest)
+		buff := make([]byte, 2048)
+		n, addr, _ := sConn.ReadFromUDP(buff)
+
+		go tunnel(sConn, addr, daddr, buff, n)
 	}
 }
 
-func flip(src, dest net.Conn, wg *sync.WaitGroup) {
-	buff := make([]byte, 2048)
-	for {
-		src.SetReadDeadline(time.Now().Add(TUNNEL_TIMEOUT))
-		n, err := src.Read(buff)
-
-		for i := 0; i < n; i++ {
-			buff[i] ^= 0x71
-		}
-
-		if n > 0 {
-			dest.SetWriteDeadline(time.Now().Add(TUNNEL_TIMEOUT))
-			_, err2 := dest.Write(buff[:n])
-			if err2 != nil {
-				break
-			}
-		}
-
-		if err != nil {
-			break
-		}
-	}
-	wg.Done()
-}
-
-func tunnelClientHandle(conn net.Conn, dest string) {
-	remoteConn, err := net.DialTimeout("udp", dest, TUNNEL_TIMEOUT)
-	// ignore
+func tunnel(sConn *net.UDPConn, addr, dest *net.UDPAddr, buff []byte, n int) {
+	rConn, err := net.DialUDP("udp", nil, dest)
 	if err != nil {
+		log.Println(err)
 		return
 	}
 
-	wg := &sync.WaitGroup{}
-	wg.Add(2)
-	go flip(conn, remoteConn, wg)
-	go flip(remoteConn, conn, wg)
-	wg.Wait()
+	entype(buff[:n])
+
+	_, err = rConn.Write(buff[:n])
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	n, err = rConn.Read(buff)
+
+	entype(buff[:n])
+
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	sConn.WriteToUDP(buff[:n], addr)
+}
+
+func entype(buff []byte) {
+	length := len(buff)
+	for i := 0; i < length; i++ {
+		buff[i] ^= 0x59
+	}
 }
 
 func tunnelServerServe(address string, dest string) {
-	l, e := net.Listen("udp", address)
+	laddr, _ := net.ResolveUDPAddr("udp", address)
+	daddr, _ := net.ResolveUDPAddr("udp", dest)
 
-	if e != nil {
-		log.Println(e)
-		return
-	}
+	sConn, _ := net.ListenUDP("udp", laddr)
 
 	for {
-		n, _ := l.Accept()
-		go tunnelClientHandle(n, dest)
+		buff := make([]byte, 2048)
+		n, addr, _ := sConn.ReadFromUDP(buff)
+
+		go tunnel(sConn, addr, daddr, buff, n)
 	}
 }
