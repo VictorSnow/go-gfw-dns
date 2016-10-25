@@ -198,7 +198,9 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 		}
 
 		resp, _, _ := c.Exchange(req, servers[0])
-		w.WriteMsg(resp)
+		if resp {
+			w.WriteMsg(resp)
+		}
 		return
 	}
 
