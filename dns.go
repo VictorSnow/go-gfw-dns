@@ -107,7 +107,7 @@ func resolve(server string, req *dns.Msg) (*dnsRecord, error) {
 	for _, v := range r.Answer {
 		if a, ok := v.(*dns.A); ok {
 			if ip := a.A.To4(); ip != nil {
-				expire := time.Now().Add(time.Duration(DNS_CACHE_INTERVAL) * time.Second)
+				expire := time.Now().Add(time.Duration(v.Header().Ttl+3600) * time.Second)
 				return &dnsRecord{qname, ip, expire}, nil
 			}
 		}
@@ -118,7 +118,12 @@ func resolve(server string, req *dns.Msg) (*dnsRecord, error) {
 func doResolve(server string, req *dns.Msg, recvChan chan<- dnsRecord, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	r, _ := resolve(server, req)
+	r, err := resolve(server, req)
+
+	if err != nil {
+		log.Println(err)
+	}
+
 	// try send or ignore
 	if r != nil {
 		select {
@@ -172,6 +177,11 @@ func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
 func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 	qname := req.Question[0].Name
 
+	servers := inDoorServers
+	if inHost(qname) {
+		servers = bypassServers
+	}
+
 	// only handle  A record and hit cache
 	if req.Question[0].Qtype == dns.TypeA {
 		if record, ok := getRecord(qname); ok {
@@ -179,17 +189,23 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 				responseRecord(w, req, record)
 			}
 		}
+	} else {
+		// 不处理其他类型的查询
+		c := &dns.Client{
+			Net:          "udp",
+			ReadTimeout:  DNS_TIMEOUT,
+			WriteTimeout: DNS_TIMEOUT,
+		}
+
+		resp, _, _ := c.Exchange(req, servers[0])
+		w.WriteMsg(resp)
+		return
 	}
 
 	recvChan := make(chan dnsRecord, 1)
 	defer close(recvChan)
 
 	var wg = &sync.WaitGroup{}
-
-	servers := inDoorServers
-	if inHost(qname) {
-		servers = bypassServers
-	}
 
 	for _, server := range servers {
 		wg.Add(1)
