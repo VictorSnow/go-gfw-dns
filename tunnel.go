@@ -42,20 +42,23 @@ func tunnel(sConn *net.UDPConn, addr, dest *net.UDPAddr, buff []byte, n int) {
 
 	entype(buff[:n])
 
+	rConn.SetWriteDeadline(time.Now().Add(TUNNEL_TIMEOUT))
 	_, err = rConn.Write(buff[:n])
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
+	rConn.SetReadDeadline(time.Now().Add(TUNNEL_TIMEOUT))
 	n, err = rConn.Read(buff)
-
-	entype(buff[:n])
 
 	if err != nil {
 		log.Println(err)
 		return
 	}
+
+	entype(buff[:n])
+
 	sConn.WriteToUDP(buff[:n], addr)
 }
 
