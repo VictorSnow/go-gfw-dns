@@ -14,7 +14,7 @@ import (
 	"github.com/pmylund/go-cache"
 )
 
-const DNS_TIMEOUT = 20 * time.Second
+const DNS_TIMEOUT = 2 * time.Second
 const DNS_CACHE_INTERVAL = 24 * 365 * 60 * 60
 const DNS_SAVE_INTERVAL = 60 * 60
 
