@@ -5,11 +5,14 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 var Hosts map[string]int
+var lock *sync.Mutex
 
 func init() {
+	lock = &sync.Mutex{}
 	Hosts = make(map[string]int)
 	buf, err := ioutil.ReadFile("host.txt")
 	if err != nil {
@@ -23,15 +26,24 @@ func init() {
 
 	for _, v := range tmpHostArr {
 		v = strings.TrimSpace(v)
-		Hosts[v] = 1
+		if v != "" {
+			Hosts[v] = 1
+		}
 	}
 }
 
 func inHost(host string) bool {
 	host = strings.Trim(host, ".")
+	rhost := host
 
 	for {
 		if _, ok := Hosts[host]; ok {
+			if rhost != host {
+				lock.Lock()
+				defer lock.Unlock()
+				Hosts[rhost] = 1
+				ioutil.WriteFile("host.txt", []byte("\n"+rhost), os.ModeAppend)
+			}
 			return true
 		}
 

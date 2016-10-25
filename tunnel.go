@@ -24,6 +24,8 @@ func tunnelClientServe(address string, dest string) {
 
 func tunnel(sConn *net.UDPConn, addr, dest *net.UDPAddr, buff []byte, n int) {
 	rConn, err := net.DialUDP("udp", nil, dest)
+	defer rConn.Close()
+
 	if err != nil {
 		log.Println(err)
 		return
