@@ -112,7 +112,18 @@ func resolve(server string, req *dns.Msg) (*dnsRecord, error) {
 			}
 		}
 	}
-	return nil, errors.New("ipv4地址错误:" + qname)
+
+	// only ipv6
+	for _, v := range r.Answer {
+		if a, ok := v.(*dns.A); ok {
+			if ip := a.A.To16(); ip != nil {
+				expire := time.Now().Add(time.Duration(v.Header().Ttl+3600) * time.Second)
+				return &dnsRecord{qname, ip, expire}, nil
+			}
+		}
+	}
+
+	return nil, errors.New("ip地址错误:" + qname)
 }
 
 func doResolve(server string, req *dns.Msg, recvChan chan<- dnsRecord, wg *sync.WaitGroup) {
@@ -134,7 +145,7 @@ func doResolve(server string, req *dns.Msg, recvChan chan<- dnsRecord, wg *sync.
 }
 
 func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
-	ip := record.Ip.To4()
+	ip := record.Ip
 
 	a := &dns.A{
 		Hdr: dns.RR_Header{
