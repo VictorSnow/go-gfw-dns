@@ -2,6 +2,7 @@ package main
 
 import (
 	"io/ioutil"
+	"log"
 	"os"
 	"regexp"
 	"strings"
@@ -42,7 +43,15 @@ func inHost(host string) bool {
 				lock.Lock()
 				defer lock.Unlock()
 				Hosts[rhost] = 1
-				//ioutil.WriteFile("host.txt", []byte("\n"+rhost), os.ModeAppend)
+
+				// 缓存到文件
+				f, err := os.OpenFile("host.txt", os.O_APPEND, os.ModePerm)
+				if err != nil {
+					log.Println("Open error", err)
+					return true
+				}
+				defer f.Close()
+				f.Write([]byte("\n" + rhost))
 			}
 			return true
 		}
@@ -69,6 +78,7 @@ func parseGfw() {
 	s := strings.Index(tmpStr, "!################Whitelist Start################")
 	tmpStr = tmpStr[:s-1]
 
+	// match host
 	reg, _ := regexp.Compile("(\\w+)(\\.\\w+)+")
 	strArr := reg.FindAllString(tmpStr, -1)
 

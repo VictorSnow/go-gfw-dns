@@ -6163,3 +6163,7 @@ klsio.gov.tw
 nici.nat.gov.tw
 cromotc.nat.gov.tw
 house.gov.tw
+apis.google.com
+www.gstatic.com
+www.google.com.hk
+ssl.gstatic.com

@@ -112,7 +112,7 @@ func resolve(server string, req *dns.Msg) (*dnsRecord, error) {
 			}
 		}
 	}
-	return nil, errors.New("ipv4地址错误")
+	return nil, errors.New("ipv4地址错误:" + qname)
 }
 
 func doResolve(server string, req *dns.Msg, recvChan chan<- dnsRecord, wg *sync.WaitGroup) {
