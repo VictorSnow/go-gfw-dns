@@ -64,8 +64,10 @@ func tunnel(sConn *net.UDPConn, addr, dest *net.UDPAddr, buff []byte, n int) {
 
 func entype(buff []byte) {
 	length := len(buff)
+	passLength := len(TunnelPassword)
+
 	for i := 0; i < length; i++ {
-		buff[i] ^= 0x59
+		buff[i] ^= TunnelPassword[i%passLength]
 	}
 }
 

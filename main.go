@@ -9,16 +9,18 @@ import (
 )
 
 type Config struct {
-	Mode          string
-	Listen        string
-	BypassTunnels map[string]string
-	InDoorServers []string
-	ServerTunnels map[string]string
-	BlackIpList   []string
+	Mode           string
+	Listen         string
+	BypassTunnels  map[string]string
+	InDoorServers  []string
+	ServerTunnels  map[string]string
+	BlackIpList    []string
+	TunnelPassword string
 }
 
 var ServerConfig Config
 var BlackIpList map[string]int
+var TunnelPassword []byte
 
 func main() {
 
@@ -39,7 +41,15 @@ func main() {
 	err := json.NewDecoder(f).Decode(&ServerConfig)
 	if err != nil {
 		log.Println("解析配置文件错误", err)
+		return
 	}
+
+	if ServerConfig.TunnelPassword == "" {
+		log.Println("密码不可为空", err)
+		return
+	}
+
+	TunnelPassword = []byte(ServerConfig.TunnelPassword)
 
 	for _, v := range ServerConfig.BlackIpList {
 		BlackIpList[v] = 1

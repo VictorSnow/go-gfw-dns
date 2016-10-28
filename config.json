@@ -14,5 +14,6 @@
 		"0.0.0.0:1092": "8.8.4.4:53",
 		"0.0.0.0:1093": "106.187.35.20:53"
 	},
-	"BlackIpList": []
+	"BlackIpList": [],
+	"TunnelPassword": "victor snow"
 }

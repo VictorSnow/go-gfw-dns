@@ -14,6 +14,7 @@
 - BypassTunnels 为转发udp的地址  本地  <----> 转发服务器
 - InDoorServers 国内的dns解析服务器
 - BlackIpList dns返回的污染的ip地址 解析会返回相同的ip地址
+- TunnelPassword 加密隧道的密码
 
 ```
 cd myDns
@@ -34,6 +35,7 @@ nohup ./myDns -config config.json &
 编辑config.json
 - Mode修改为server
 - ServerTunnels用于配置转发到哪些dns服务器
+- TunnelPassword 加密隧道的密码
 
 ```
 cd myDns
