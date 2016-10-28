@@ -13,11 +13,11 @@ func tunnelClientServe(address string, dest string) {
 	daddr, _ := net.ResolveUDPAddr("udp", dest)
 
 	sConn, err := net.ListenUDP("udp", laddr)
-
 	if err != nil {
 		log.Println(err)
 		return
 	}
+	defer sConn.Close()
 
 	for {
 		buff := make([]byte, 2048)
@@ -80,6 +80,7 @@ func tunnelServerServe(address string, dest string) {
 		log.Println(err)
 		return
 	}
+	defer sConn.Close()
 
 	for {
 		buff := make([]byte, 2048)
