@@ -227,6 +227,22 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 
 	select {
 	case r := <-recvChan:
+		// 返回的是否是受污染的ip
+		ipStr := string(r.Ip)
+		for _, ip := range ServerConfig.BlackIpList {
+			if ip == ipStr {
+				addHost(qname)
+				log.Println("受污染的域名", qname)
+				wg.Add(1)
+				// 重新解析qname
+				go func() {
+					dnsHandle(w, req)
+					wg.Done()
+				}()
+				return
+			}
+		}
+
 		addRecord(qname, r)
 		responseRecord(w, req, r)
 	case <-time.After(DNS_TIMEOUT):

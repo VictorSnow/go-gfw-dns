@@ -6167,3 +6167,6 @@ apis.google.com
 www.gstatic.com
 www.google.com.hk
 ssl.gstatic.com
+fonts.gstatic.com
+csi.gstatic.com
+pbs.twimg.com

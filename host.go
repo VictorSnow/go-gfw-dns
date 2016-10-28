@@ -33,6 +33,21 @@ func init() {
 	}
 }
 
+func addHost(rhost string) {
+	lock.Lock()
+	defer lock.Unlock()
+	Hosts[rhost] = 1
+
+	// 缓存到文件
+	f, err := os.OpenFile("host.txt", os.O_APPEND, os.ModePerm)
+	if err != nil {
+		log.Println("Open error", err)
+		return
+	}
+	defer f.Close()
+	f.Write([]byte("\n" + rhost))
+}
+
 func inHost(host string) bool {
 	host = strings.Trim(host, ".")
 	rhost := host
@@ -40,18 +55,7 @@ func inHost(host string) bool {
 	for {
 		if _, ok := Hosts[host]; ok {
 			if rhost != host {
-				lock.Lock()
-				defer lock.Unlock()
-				Hosts[rhost] = 1
-
-				// 缓存到文件
-				f, err := os.OpenFile("host.txt", os.O_APPEND, os.ModePerm)
-				if err != nil {
-					log.Println("Open error", err)
-					return true
-				}
-				defer f.Close()
-				f.Write([]byte("\n" + rhost))
+				addHost(host)
 			}
 			return true
 		}

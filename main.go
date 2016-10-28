@@ -14,6 +14,7 @@ type Config struct {
 	BypassTunnels map[string]string
 	InDoorServers []string
 	ServerTunnels map[string]string
+	BlackIpList   []string
 }
 
 var ServerConfig Config
