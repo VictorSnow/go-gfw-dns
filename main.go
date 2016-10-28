@@ -23,9 +23,8 @@ func main() {
 	config_file := flag.String("config", "", "config file")
 	flag.Parse()
 
-	log.Println("打开配置文件", *config_file)
 	if *config_file == "" {
-		return
+		*config_file = "config.json"
 	}
 
 	f, e := os.OpenFile(*config_file, os.O_CREATE, os.ModePerm)
