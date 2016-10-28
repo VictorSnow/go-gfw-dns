@@ -185,6 +185,12 @@ func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
 	return
 }
 
+func inBlackIpList(ip net.IP) bool {
+	str := ip.String()
+	_, ok := BlackIpList[str]
+	return ok
+}
+
 func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 	qname := req.Question[0].Name
 
@@ -231,25 +237,19 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 	select {
 	case r := <-recvChan:
 		// 国内的dns返回的是污染的ip
-		if mode == "normal" {
-			ipStr := string(r.Ip)
-			for _, ip := range ServerConfig.BlackIpList {
-				if ip == ipStr {
-					addHost(qname)
-					log.Println("受污染的域名", qname)
-					wg.Add(1)
-					// 重新解析qname
-					go func() {
-						dnsHandle(w, req)
-						wg.Done()
-					}()
-					return
-				}
-			}
+		if mode == "normal" && inBlackIpList(r.Ip) {
+			// 重新解析qname
+			addHost(qname)
+			log.Println("受污染的域名", qname)
+			wg.Add(1)
+			go func() {
+				dnsHandle(w, req)
+				wg.Done()
+			}()
+		} else {
+			addRecord(qname, r)
+			responseRecord(w, req, r)
 		}
-
-		addRecord(qname, r)
-		responseRecord(w, req, r)
 	case <-time.After(DNS_TIMEOUT):
 		if record, ok := getRecord(qname); ok {
 			responseRecord(w, req, record)

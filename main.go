@@ -18,6 +18,7 @@ type Config struct {
 }
 
 var ServerConfig Config
+var BlackIpList map[string]int
 
 func main() {
 
@@ -38,6 +39,10 @@ func main() {
 	err := json.NewDecoder(f).Decode(&ServerConfig)
 	if err != nil {
 		log.Println("解析配置文件错误", err)
+	}
+
+	for _, v := range ServerConfig.BlackIpList {
+		BlackIpList[v] = 1
 	}
 
 	// 客户端模式
