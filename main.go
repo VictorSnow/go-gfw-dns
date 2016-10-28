@@ -51,6 +51,7 @@ func main() {
 
 	TunnelPassword = []byte(ServerConfig.TunnelPassword)
 
+	BlackIpList = make(map[string]int)
 	for _, v := range ServerConfig.BlackIpList {
 		BlackIpList[v] = 1
 	}
