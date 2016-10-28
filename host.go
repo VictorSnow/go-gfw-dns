@@ -9,12 +9,14 @@ import (
 	"sync"
 )
 
-var Hosts map[string]int
+var Hosts map[string]int      // 黑名单
+var WhiteHosts map[string]int // 白名单
 var lock *sync.Mutex
 
 func init() {
 	lock = &sync.Mutex{}
 	Hosts = make(map[string]int)
+	WhiteHosts = make(map[string]int)
 	buf, err := ioutil.ReadFile("host.txt")
 	if err != nil {
 		return
@@ -37,6 +39,7 @@ func addHost(rhost string) {
 	lock.Lock()
 	defer lock.Unlock()
 	Hosts[rhost] = 1
+	delete(WhiteHosts, rhost)
 
 	// 缓存到文件
 	f, err := os.OpenFile("host.txt", os.O_APPEND, os.ModePerm)
@@ -48,9 +51,19 @@ func addHost(rhost string) {
 	f.Write([]byte("\n" + rhost))
 }
 
+func addWhiteHost(rhost string) {
+	lock.Lock()
+	defer lock.Unlock()
+	WhiteHosts[rhost] = 1
+}
+
 func inHost(host string) bool {
 	host = strings.Trim(host, ".")
 	rhost := host
+
+	if _, ok := WhiteHosts[host]; ok {
+		return false
+	}
 
 	for {
 		if _, ok := Hosts[host]; ok {
@@ -62,10 +75,13 @@ func inHost(host string) bool {
 
 		if index := strings.Index(host, "."); index >= 0 {
 			host = host[index+1:]
+			continue
 		} else {
 			break
 		}
 	}
+
+	addWhiteHost(host)
 	return false
 }
 

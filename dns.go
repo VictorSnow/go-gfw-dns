@@ -189,7 +189,10 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 	qname := req.Question[0].Name
 
 	servers := inDoorServers
+	mode := "normal"
+
 	if inHost(qname) {
+		mode = "bypass"
 		servers = bypassServers
 	}
 
@@ -227,19 +230,21 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 
 	select {
 	case r := <-recvChan:
-		// 返回的是否是受污染的ip
-		ipStr := string(r.Ip)
-		for _, ip := range ServerConfig.BlackIpList {
-			if ip == ipStr {
-				addHost(qname)
-				log.Println("受污染的域名", qname)
-				wg.Add(1)
-				// 重新解析qname
-				go func() {
-					dnsHandle(w, req)
-					wg.Done()
-				}()
-				return
+		// 国内的dns返回的是污染的ip
+		if mode == "normal" {
+			ipStr := string(r.Ip)
+			for _, ip := range ServerConfig.BlackIpList {
+				if ip == ipStr {
+					addHost(qname)
+					log.Println("受污染的域名", qname)
+					wg.Add(1)
+					// 重新解析qname
+					go func() {
+						dnsHandle(w, req)
+						wg.Done()
+					}()
+					return
+				}
 			}
 		}
 

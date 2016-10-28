@@ -13,12 +13,13 @@
 - Listen 为本地的监听dns请求地址
 - BypassTunnels 为转发udp的地址  本地  <----> 转发服务器
 - InDoorServers 国内的dns解析服务器
-
+- BlackIpList dns返回的污染的ip地址 解析会返回相同的ip地址
 
 
 2个列表用来转发dns请求， 通过gfwlist提供的主机名来辨别
 - 国内的dns解析
 - 加密的dns转发到国外的dns服务器解析， 目前仅提供一个国外的地址解析
+- 如果国内的dns解析到的ip在BlackIpList自动增加到host.txt走国外的线路
 
 提供Cache, dns故障时能使用本地缓存的dns记录
 
