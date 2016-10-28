@@ -33,19 +33,20 @@ func tunnelClientServe(address string, dest string) {
 
 func tunnel(sConn *net.UDPConn, addr, dest *net.UDPAddr, buff []byte, n int) {
 	rConn, err := net.DialUDP("udp", nil, dest)
-	defer rConn.Close()
 
 	if err != nil {
-		log.Println(err)
+		log.Println("udp connection fail", err)
 		return
 	}
+
+	defer rConn.Close()
 
 	entype(buff[:n])
 
 	rConn.SetWriteDeadline(time.Now().Add(TUNNEL_TIMEOUT))
 	_, err = rConn.Write(buff[:n])
 	if err != nil {
-		log.Println(err)
+		log.Println("udp remote write timeout", err)
 		return
 	}
 
@@ -53,12 +54,11 @@ func tunnel(sConn *net.UDPConn, addr, dest *net.UDPAddr, buff []byte, n int) {
 	n, err = rConn.Read(buff)
 
 	if err != nil {
-		log.Println(err)
+		log.Println("udp remote read timeout", err)
 		return
 	}
 
 	entype(buff[:n])
-
 	sConn.WriteToUDP(buff[:n], addr)
 }
 
