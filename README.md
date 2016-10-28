@@ -15,6 +15,13 @@
 - InDoorServers 国内的dns解析服务器
 - BlackIpList dns返回的污染的ip地址 解析会返回相同的ip地址
 
+```
+cd myDns
+go build
+
+nohup ./myDns -config config.json &
+```
+
 
 2个列表用来转发dns请求， 通过gfwlist提供的主机名来辨别
 - 国内的dns解析
@@ -28,14 +35,20 @@
 - Mode修改为server
 - ServerTunnels用于配置转发到哪些dns服务器
 
+```
+cd myDns
+go build
+
+nohup ./myDns -config config.json &
+```
 
 # 结构
 
-````
+```
      client ------> 本地dns  ---(host在gfw里面)---> 远程转发服务器 ------> 国外dns
 	                  |
 	                  |
 	                  --------(host不在gfw里面) ---> 国内的dns服务器
 
-````
+```
 
