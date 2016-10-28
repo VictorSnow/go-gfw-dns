@@ -36,8 +36,6 @@ func init() {
 }
 
 func addHost(rhost string) {
-	lock.Lock()
-	defer lock.Unlock()
 	Hosts[rhost] = 1
 	delete(WhiteHosts, rhost)
 
@@ -52,14 +50,15 @@ func addHost(rhost string) {
 }
 
 func addWhiteHost(rhost string) {
-	lock.Lock()
-	defer lock.Unlock()
 	WhiteHosts[rhost] = 1
 }
 
 func inHost(host string) bool {
 	host = strings.Trim(host, ".")
 	rhost := host
+	// 暂时这么解决 hashmap并发读
+	lock.Lock()
+	defer lock.Unlock()
 
 	if _, ok := WhiteHosts[host]; ok {
 		return false
