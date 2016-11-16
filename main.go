@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"time"
 )
@@ -24,6 +26,8 @@ var BlackIpList map[string]int
 var TunnelPassword []byte
 
 func main() {
+
+	go http.ListenAndServe(":8099", nil)
 
 	config_file := flag.String("config", "", "config file")
 	flag.Parse()
