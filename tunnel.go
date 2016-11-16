@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const TUNNEL_TIMEOUT = 5 * time.Second
+const TUNNEL_TIMEOUT = 20 * time.Second
 
 func tunnelClientServe(address string, dest string) {
 	laddr, _ := net.ResolveUDPAddr("udp", address)

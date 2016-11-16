@@ -6170,3 +6170,4 @@ ssl.gstatic.com
 fonts.gstatic.com
 csi.gstatic.com
 pbs.twimg.com
+googleapis.com

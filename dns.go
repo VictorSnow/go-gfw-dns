@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"log"
 	"net"
 	"os"
@@ -14,7 +13,7 @@ import (
 	"github.com/pmylund/go-cache"
 )
 
-const DNS_TIMEOUT = 5 * time.Second
+const DNS_TIMEOUT = 20 * time.Second
 const DNS_CACHE_INTERVAL = 24 * 365 * 60 * 60
 const DNS_SAVE_INTERVAL = 60 * 60
 
@@ -84,31 +83,52 @@ func addRecord(qname string, record dnsRecord) {
 	cdns.Add(qname, record, DNS_CACHE_INTERVAL*time.Second)
 }
 
-func resolve(server string, req *dns.Msg) (*dnsRecord, error) {
-	c := &dns.Client{
-		Net:          "udp",
-		ReadTimeout:  DNS_TIMEOUT,
-		WriteTimeout: DNS_TIMEOUT,
+func mutilResolve(server []string, req *dns.Msg, recvChan chan<- *dns.Msg) {
+	defer close(recvChan)
+
+	wg := &sync.WaitGroup{}
+	for _, s := range server {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c := &dns.Client{
+				Net:          "udp",
+				ReadTimeout:  DNS_TIMEOUT,
+				WriteTimeout: DNS_TIMEOUT,
+				DialTimeout:  DNS_TIMEOUT,
+			}
+
+			r, _, err := c.Exchange(req, s)
+
+			if err != nil || (r != nil && r.Rcode != dns.RcodeSuccess) {
+				return
+			}
+			select {
+			case recvChan <- r:
+			default:
+			}
+		}()
+	}
+	wg.Wait()
+	// force always have one msg
+	select {
+	case recvChan <- nil:
+	default:
+	}
+}
+
+func parseDnsMsg(r *dns.Msg) *dnsRecord {
+	if r == nil {
+		return nil
 	}
 
-	qname := req.Question[0].Name
-
-	r, _, err := c.Exchange(req, server)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if r != nil && r.Rcode != dns.RcodeSuccess {
-		return nil, errors.New("dns结果错误")
-	}
-
+	qname := r.Question[0].Name
 	// just use ipv4 address
 	for _, v := range r.Answer {
 		if a, ok := v.(*dns.A); ok {
 			if ip := a.A.To4(); ip != nil {
 				expire := time.Now().Add(time.Duration(v.Header().Ttl+3600) * time.Second)
-				return &dnsRecord{qname, ip, expire}, nil
+				return &dnsRecord{qname, ip, expire}
 			}
 		}
 	}
@@ -118,30 +138,11 @@ func resolve(server string, req *dns.Msg) (*dnsRecord, error) {
 		if a, ok := v.(*dns.A); ok {
 			if ip := a.A.To16(); ip != nil {
 				expire := time.Now().Add(time.Duration(v.Header().Ttl+3600) * time.Second)
-				return &dnsRecord{qname, ip, expire}, nil
+				return &dnsRecord{qname, ip, expire}
 			}
 		}
 	}
-
-	return nil, errors.New("ip地址错误:" + qname)
-}
-
-func doResolve(server string, req *dns.Msg, recvChan chan<- dnsRecord, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	r, err := resolve(server, req)
-
-	if err != nil {
-		log.Println(err)
-	}
-
-	// try send or ignore
-	if r != nil {
-		select {
-		case recvChan <- *r:
-		default:
-		}
-	}
+	return nil
 }
 
 func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
@@ -194,6 +195,8 @@ func inBlackIpList(ip net.IP) bool {
 func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 	qname := req.Question[0].Name
 
+	log.Println("解析域名", qname)
+
 	servers := inDoorServers
 	mode := "normal"
 
@@ -202,53 +205,45 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 		servers = bypassServers
 	}
 
-	// only handle  A record and hit cache
-	if req.Question[0].Qtype == dns.TypeA {
+	// only handle  A record and AAAA record
+	if req.Question[0].Qtype == dns.TypeA || req.Question[0].Qtype == dns.TypeAAAA {
 		if record, ok := getRecord(qname); ok {
 			if record.Expire.After(time.Now()) {
 				responseRecord(w, req, record)
 			}
 		}
 	} else {
-		// 不处理其他类型的查询
-		c := &dns.Client{
-			Net:          "udp",
-			ReadTimeout:  DNS_TIMEOUT,
-			WriteTimeout: DNS_TIMEOUT,
-		}
+		recvChan := make(chan *dns.Msg, 1)
+		go mutilResolve(servers, req, recvChan)
 
-		resp, _, _ := c.Exchange(req, servers[0])
-		if resp != nil {
-			w.WriteMsg(resp)
+		select {
+		case r := <-recvChan:
+			if r != nil {
+				w.WriteMsg(r)
+			}
 		}
 		return
 	}
 
-	recvChan := make(chan dnsRecord, 1)
-	defer close(recvChan)
-
-	var wg = &sync.WaitGroup{}
-
-	for _, server := range servers {
-		wg.Add(1)
-		go doResolve(server, req, recvChan, wg)
-	}
+	recvChan := make(chan *dns.Msg, 1)
+	go mutilResolve(servers, req, recvChan)
 
 	select {
-	case r := <-recvChan:
-		// 国内的dns返回的是污染的ip
-		if mode == "normal" && inBlackIpList(r.Ip) {
-			// 重新解析qname
-			addHost(qname)
-			log.Println("受污染的域名", qname)
-			wg.Add(1)
-			go func() {
-				dnsHandle(w, req)
-				wg.Done()
-			}()
-		} else {
-			addRecord(qname, r)
-			responseRecord(w, req, r)
+	case msg := <-recvChan:
+		if msg != nil {
+			r := parseDnsMsg(msg)
+			if r != nil {
+				// 国内的dns返回的是污染的ip
+				if mode == "normal" && inBlackIpList(r.Ip) {
+					// 重新解析qname
+					log.Println("受污染的域名", qname)
+					addHost(qname)
+					dnsHandle(w, req)
+				} else {
+					addRecord(qname, *r)
+					responseRecord(w, req, *r)
+				}
+			}
 		}
 	case <-time.After(DNS_TIMEOUT):
 		if record, ok := getRecord(qname); ok {
@@ -256,7 +251,4 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 		}
 		break
 	}
-
-	// do we need to wait all go routines exit ???
-	wg.Wait()
 }
