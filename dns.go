@@ -3,10 +3,7 @@ package main
 import (
 	"log"
 	"net"
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/miekg/dns"
@@ -33,20 +30,20 @@ func ListenAndServe(address string, inDoor []string, byPass []string) {
 
 	// 缓存文件
 	cdns = cache.New(time.Second*time.Duration(DNS_CACHE_INTERVAL), time.Second*60)
-	cdns.LoadFile("data.txt")
-	defer func() {
-		cdns.SaveFile("data.txt")
-	}()
+	//cdns.LoadFile("data.txt")
+	//defer func() {
+	//	cdns.SaveFile("data.txt")
+	//}()
 
 	// catch exit
-	saveSig := make(chan os.Signal)
-	go func() {
-		select {
-		case <-saveSig:
-			cdns.SaveFile("data.txt")
-		}
-	}()
-	signal.Notify(saveSig, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGABRT)
+	//saveSig := make(chan os.Signal)
+	//go func() {
+	//	select {
+	//	case <-saveSig:
+	//		cdns.SaveFile("data.txt")
+	//	}
+	//}()
+	//signal.Notify(saveSig, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGABRT)
 
 	udpHandler := dns.NewServeMux()
 	udpHandler.HandleFunc(".", dnsHandle)
@@ -148,13 +145,18 @@ func parseDnsMsg(r *dns.Msg) *dnsRecord {
 func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
 	ip := record.Ip
 
+	ttl := record.Expire.Sub(time.Now()).Seconds()
+	if ttl < 0 {
+		ttl = 3600
+	}
+
 	a := &dns.A{
 		Hdr: dns.RR_Header{
 			Name:     record.Name,
 			Rrtype:   dns.TypeA,
 			Class:    dns.ClassINET,
 			Rdlength: uint16(len(ip)),
-			Ttl:      uint32(record.Expire.Sub(time.Now()).Seconds()),
+			Ttl:      uint32(ttl),
 		},
 		A: ip,
 	}
