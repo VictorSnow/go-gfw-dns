@@ -15,5 +15,6 @@
 		"0.0.0.0:1093": "106.187.35.20:53"
 	},
 	"BlackIpList": [],
-	"TunnelPassword": "victor snow"
+	"TunnelPassword": "victor snow",
+	"ForceRemote": false,
 }

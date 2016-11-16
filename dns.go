@@ -100,7 +100,7 @@ func mutilResolve(server []string, req *dns.Msg, recvChan chan<- *dns.Msg) {
 
 			r, _, err := c.Exchange(req, s)
 
-			if err != nil || (r != nil && r.Rcode != dns.RcodeSuccess) {
+			if err != nil {
 				return
 			}
 			select {
@@ -195,12 +195,10 @@ func inBlackIpList(ip net.IP) bool {
 func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 	qname := req.Question[0].Name
 
-	log.Println("解析域名", qname)
-
 	servers := inDoorServers
 	mode := "normal"
 
-	if inHost(qname) {
+	if inHost(qname) || ServerConfig.ForceRemote {
 		mode = "bypass"
 		servers = bypassServers
 	}
@@ -243,6 +241,9 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 					addRecord(qname, *r)
 					responseRecord(w, req, *r)
 				}
+			} else {
+				// 返回dns错误
+				w.WriteMsg(msg)
 			}
 		}
 	case <-time.After(DNS_TIMEOUT):

@@ -16,6 +16,7 @@ type Config struct {
 	ServerTunnels  map[string]string
 	BlackIpList    []string
 	TunnelPassword string
+	ForceRemote    bool
 }
 
 var ServerConfig Config

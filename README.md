@@ -15,6 +15,7 @@
 - InDoorServers 国内的dns解析服务器
 - BlackIpList dns返回的污染的ip地址 解析会返回相同的ip地址
 - TunnelPassword 加密隧道的密码
+- ForceRemote 强制所有的dns请求走加密通道
 
 ```
 cd myDns
