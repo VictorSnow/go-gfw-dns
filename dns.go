@@ -157,10 +157,10 @@ func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
 		MsgHdr: dns.MsgHdr{
 			Id:                 req.MsgHdr.Id,
 			Response:           true,
-			Opcode:             0,
+			Opcode:             req.MsgHdr.Opcode,
 			Authoritative:      false,
 			Truncated:          false,
-			RecursionDesired:   true,
+			RecursionDesired:   req.MsgHdr.RecursionDesired,
 			RecursionAvailable: true,
 			Zero:               false,
 			AuthenticatedData:  false,
