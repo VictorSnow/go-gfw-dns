@@ -189,7 +189,7 @@ func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
 		res.Answer[0] = &dns.AAAA{
 			Hdr: dns.RR_Header{
 				Name:     record.Name,
-				Rrtype:   dns.TypeA,
+				Rrtype:   dns.TypeAAAA,
 				Class:    dns.ClassINET,
 				Rdlength: uint16(len(ip)),
 				Ttl:      uint32(ttl),
@@ -219,7 +219,7 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 		servers = bypassServers
 	}
 
-	// only handle  A record and AAAA record, stanrd query
+	// only handle  A record and AAAA record, standard query
 	if (req.Question[0].Qtype == dns.TypeA || req.Question[0].Qtype == dns.TypeAAAA) &&
 		req.Opcode == dns.OpcodeQuery {
 		if record, ok := getRecord(qname); ok {
