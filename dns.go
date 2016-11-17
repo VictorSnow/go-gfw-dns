@@ -18,6 +18,7 @@ type dnsRecord struct {
 	Name   string
 	Ip     net.IP
 	Expire time.Time
+	Type   uint16
 }
 
 var bypassServers []string
@@ -125,7 +126,7 @@ func parseDnsMsg(r *dns.Msg) *dnsRecord {
 		if a, ok := v.(*dns.A); ok {
 			if ip := a.A.To4(); ip != nil {
 				expire := time.Now().Add(time.Duration(v.Header().Ttl+3600) * time.Second)
-				return &dnsRecord{qname, ip, expire}
+				return &dnsRecord{qname, ip, expire, dns.TypeA}
 			}
 		}
 	}
@@ -135,7 +136,7 @@ func parseDnsMsg(r *dns.Msg) *dnsRecord {
 		if a, ok := v.(*dns.A); ok {
 			if ip := a.A.To16(); ip != nil {
 				expire := time.Now().Add(time.Duration(v.Header().Ttl+3600) * time.Second)
-				return &dnsRecord{qname, ip, expire}
+				return &dnsRecord{qname, ip, expire, dns.TypeAAAA}
 			}
 		}
 	}
@@ -148,17 +149,6 @@ func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
 	ttl := record.Expire.Sub(time.Now()).Seconds()
 	if ttl < 0 {
 		ttl = 3600
-	}
-
-	a := &dns.A{
-		Hdr: dns.RR_Header{
-			Name:     record.Name,
-			Rrtype:   dns.TypeA,
-			Class:    dns.ClassINET,
-			Rdlength: uint16(len(ip)),
-			Ttl:      uint32(ttl),
-		},
-		A: ip,
 	}
 
 	q := req.Question[0]
@@ -179,9 +169,33 @@ func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
 		},
 		Compress: false,
 		Question: []dns.Question{q},
-		Answer:   []dns.RR{a},
+		Answer:   make([]dns.RR, 1),
 		Ns:       []dns.RR{},
 		Extra:    []dns.RR{},
+	}
+
+	if record.Type == dns.TypeA {
+		res.Answer[0] = &dns.A{
+			Hdr: dns.RR_Header{
+				Name:     record.Name,
+				Rrtype:   dns.TypeA,
+				Class:    dns.ClassINET,
+				Rdlength: uint16(len(ip)),
+				Ttl:      uint32(ttl),
+			},
+			A: ip,
+		}
+	} else {
+		res.Answer[0] = &dns.AAAA{
+			Hdr: dns.RR_Header{
+				Name:     record.Name,
+				Rrtype:   dns.TypeA,
+				Class:    dns.ClassINET,
+				Rdlength: uint16(len(ip)),
+				Ttl:      uint32(ttl),
+			},
+			AAAA: ip,
+		}
 	}
 
 	w.WriteMsg(res)
