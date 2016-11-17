@@ -219,8 +219,9 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 		servers = bypassServers
 	}
 
-	// only handle  A record and AAAA record
-	if req.Question[0].Qtype == dns.TypeA || req.Question[0].Qtype == dns.TypeAAAA {
+	// only handle  A record and AAAA record, stanrd query
+	if (req.Question[0].Qtype == dns.TypeA || req.Question[0].Qtype == dns.TypeAAAA) &&
+		req.Opcode == dns.OpcodeQuery {
 		if record, ok := getRecord(qname); ok {
 			if record.Expire.After(time.Now()) {
 				responseRecord(w, req, record)
