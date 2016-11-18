@@ -148,8 +148,6 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 
 	select {
 	case msg := <-recvChan:
-
-		log.Println(msg, qname)
 		if msg != nil {
 			r := &dnsRecord{qname, msg, time.Now().Add(time.Duration(3600 * time.Second))}
 			addRecord(cacheKey, *r)
