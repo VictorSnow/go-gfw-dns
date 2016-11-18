@@ -16,9 +16,8 @@ const DNS_SAVE_INTERVAL = 60 * 60
 
 type dnsRecord struct {
 	Name   string
-	Ip     net.IP
+	msg    *dns.Msg
 	Expire time.Time
-	Type   uint16
 }
 
 var bypassServers []string
@@ -31,20 +30,6 @@ func ListenAndServe(address string, inDoor []string, byPass []string) {
 
 	// 缓存文件
 	cdns = cache.New(time.Second*time.Duration(DNS_CACHE_INTERVAL), time.Second*60)
-	//cdns.LoadFile("data.txt")
-	//defer func() {
-	//	cdns.SaveFile("data.txt")
-	//}()
-
-	// catch exit
-	//saveSig := make(chan os.Signal)
-	//go func() {
-	//	select {
-	//	case <-saveSig:
-	//		cdns.SaveFile("data.txt")
-	//	}
-	//}()
-	//signal.Notify(saveSig, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGABRT)
 
 	udpHandler := dns.NewServeMux()
 	udpHandler.HandleFunc(".", dnsHandle)
@@ -115,90 +100,8 @@ func mutilResolve(server []string, req *dns.Msg, recvChan chan<- *dns.Msg) {
 	}
 }
 
-func parseDnsMsg(r *dns.Msg) *dnsRecord {
-	if r == nil {
-		return nil
-	}
-
-	qname := r.Question[0].Name
-	// just use ipv4 address
-	for _, v := range r.Answer {
-		if a, ok := v.(*dns.A); ok {
-			if ip := a.A.To4(); ip != nil {
-				expire := time.Now().Add(time.Duration(v.Header().Ttl+3600) * time.Second)
-				return &dnsRecord{qname, ip, expire, dns.TypeA}
-			}
-		}
-	}
-
-	// only ipv6
-	for _, v := range r.Answer {
-		if a, ok := v.(*dns.A); ok {
-			if ip := a.A.To16(); ip != nil {
-				expire := time.Now().Add(time.Duration(v.Header().Ttl+3600) * time.Second)
-				return &dnsRecord{qname, ip, expire, dns.TypeAAAA}
-			}
-		}
-	}
-	return nil
-}
-
 func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
-	ip := record.Ip
-
-	ttl := record.Expire.Sub(time.Now()).Seconds()
-	if ttl < 0 {
-		ttl = 3600
-	}
-
-	q := req.Question[0]
-
-	res := &dns.Msg{
-		MsgHdr: dns.MsgHdr{
-			Id:                 req.MsgHdr.Id,
-			Response:           true,
-			Opcode:             req.MsgHdr.Opcode,
-			Authoritative:      false,
-			Truncated:          false,
-			RecursionDesired:   req.MsgHdr.RecursionDesired,
-			RecursionAvailable: true,
-			Zero:               false,
-			AuthenticatedData:  false,
-			CheckingDisabled:   false,
-			Rcode:              0,
-		},
-		Compress: false,
-		Question: []dns.Question{q},
-		Answer:   make([]dns.RR, 1),
-		Ns:       []dns.RR{},
-		Extra:    []dns.RR{},
-	}
-
-	if record.Type == dns.TypeA {
-		res.Answer[0] = &dns.A{
-			Hdr: dns.RR_Header{
-				Name:     record.Name,
-				Rrtype:   dns.TypeA,
-				Class:    dns.ClassINET,
-				Rdlength: uint16(len(ip)),
-				Ttl:      uint32(ttl),
-			},
-			A: ip,
-		}
-	} else {
-		res.Answer[0] = &dns.AAAA{
-			Hdr: dns.RR_Header{
-				Name:     record.Name,
-				Rrtype:   dns.TypeAAAA,
-				Class:    dns.ClassINET,
-				Rdlength: uint16(len(ip)),
-				Ttl:      uint32(ttl),
-			},
-			AAAA: ip,
-		}
-	}
-
-	w.WriteMsg(res)
+	w.WriteMsg(record.msg)
 	return
 }
 
@@ -210,19 +113,19 @@ func inBlackIpList(ip net.IP) bool {
 
 func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 	qname := req.Question[0].Name
+	qtype, _ := dns.TypeToString[req.Question[0].Qtype]
+	cacheKey := qname + qtype
 
 	servers := inDoorServers
-	mode := "normal"
 
 	if inHost(qname) || ServerConfig.ForceRemote {
-		mode = "bypass"
 		servers = bypassServers
 	}
 
 	// only handle  A record and AAAA record, standard query
 	if (req.Question[0].Qtype == dns.TypeA || req.Question[0].Qtype == dns.TypeAAAA) &&
 		req.Opcode == dns.OpcodeQuery {
-		if record, ok := getRecord(qname); ok {
+		if record, ok := getRecord(cacheKey); ok {
 			if record.Expire.After(time.Now()) {
 				responseRecord(w, req, record)
 			}
@@ -245,26 +148,15 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 
 	select {
 	case msg := <-recvChan:
+
+		log.Println(msg, qname)
 		if msg != nil {
-			r := parseDnsMsg(msg)
-			if r != nil {
-				// 国内的dns返回的是污染的ip
-				if mode == "normal" && inBlackIpList(r.Ip) {
-					// 重新解析qname
-					log.Println("受污染的域名", qname)
-					addHost(qname)
-					dnsHandle(w, req)
-				} else {
-					addRecord(qname, *r)
-					responseRecord(w, req, *r)
-				}
-			} else {
-				// 返回dns错误
-				w.WriteMsg(msg)
-			}
+			r := &dnsRecord{qname, msg, time.Now().Add(time.Duration(3600 * time.Second))}
+			addRecord(cacheKey, *r)
+			responseRecord(w, req, *r)
 		}
 	case <-time.After(DNS_TIMEOUT):
-		if record, ok := getRecord(qname); ok {
+		if record, ok := getRecord(cacheKey); ok {
 			responseRecord(w, req, record)
 		}
 		break
