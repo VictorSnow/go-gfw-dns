@@ -5,7 +5,6 @@ import (
 	"flag"
 	"log"
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"time"
 )
@@ -28,11 +27,6 @@ var BlackIpList map[string]int
 var TunnelPassword []byte
 
 func main() {
-
-	if ServerConfig.DebugAddr != "" {
-		go http.ListenAndServe(ServerConfig.DebugAddr, nil)
-	}
-
 	config_file := flag.String("config", "", "config file")
 	flag.Parse()
 

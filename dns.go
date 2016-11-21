@@ -131,27 +131,19 @@ func inBlackIpList(ip net.IP) bool {
 }
 
 func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
-
 	qname := req.Question[0].Name
 	qtype, _ := dns.TypeToString[req.Question[0].Qtype]
 	cacheKey := qname + qtype
-
-	//s := time.Now().Nanosecond()
-	//defer func() {
-	//	e := time.Now().Nanosecond()
-	//	log.Println(qname, (e-s)/1000000)
-	//}()
-
-	servers := inDoorServers
-
-	if inHost(qname) || ServerConfig.ForceRemote {
-		servers = bypassServers
-	}
 
 	if record, ok := getRecord(cacheKey); ok {
 		if record.Expire.After(time.Now()) {
 			responseRecord(w, req, record)
 		}
+	}
+
+	servers := inDoorServers
+	if inHost(qname) || ServerConfig.ForceRemote {
+		servers = bypassServers
 	}
 
 	recvChan := make(chan *dns.Msg, 1)
