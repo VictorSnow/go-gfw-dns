@@ -67,7 +67,7 @@ func inHost(host string) bool {
 	for {
 		if _, ok := Hosts[host]; ok {
 			if rhost != host {
-				addHost(host)
+				addHost(rhost)
 			}
 			return true
 		}
