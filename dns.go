@@ -101,6 +101,9 @@ func mutilResolve(server []string, req *dns.Msg, recvChan chan<- *dns.Msg) {
 }
 
 func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
+	// 修改id
+	record.msg.Id = req.MsgHdr.Id
+
 	// 修改ttl
 	for _, a := range record.msg.Answer {
 		if a.Header().Ttl < 600 {
