@@ -17,6 +17,8 @@ type Config struct {
 	InDoorServers  []string
 	ServerTunnels  map[string]string
 	BlackIpList    []string
+	AdminAddr      string
+	DebugAddr      string
 	TunnelPassword string
 	ForceRemote    bool
 }
@@ -27,7 +29,9 @@ var TunnelPassword []byte
 
 func main() {
 
-	go http.ListenAndServe(":8099", nil)
+	if ServerConfig.DebugAddr != "" {
+		go http.ListenAndServe(ServerConfig.DebugAddr, nil)
+	}
 
 	config_file := flag.String("config", "", "config file")
 	flag.Parse()
@@ -49,6 +53,11 @@ func main() {
 		return
 	}
 
+	// debug interface
+	if ServerConfig.DebugAddr != "" {
+		go http.ListenAndServe(ServerConfig.DebugAddr, nil)
+	}
+
 	if ServerConfig.TunnelPassword == "" {
 		log.Println("密码不可为空", err)
 		return
@@ -68,6 +77,11 @@ func main() {
 			tmpLocal = append(tmpLocal, k)
 			go tunnelClientServe(k, v)
 		}
+
+		if ServerConfig.AdminAddr != "" {
+			go adminHandle(ServerConfig.AdminAddr)
+		}
+
 		ListenAndServe(ServerConfig.Listen, ServerConfig.InDoorServers, tmpLocal)
 	} else {
 		// 服务器转发模式

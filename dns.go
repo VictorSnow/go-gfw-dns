@@ -22,14 +22,14 @@ type dnsRecord struct {
 
 var bypassServers []string
 var inDoorServers []string
-var cdns *cache.Cache
+var Cdns *cache.Cache
 
 func ListenAndServe(address string, inDoor []string, byPass []string) {
 	inDoorServers = inDoor
 	bypassServers = byPass
 
 	// 缓存文件
-	cdns = cache.New(time.Second*time.Duration(DNS_CACHE_INTERVAL), time.Second*60)
+	Cdns = cache.New(time.Second*time.Duration(DNS_CACHE_INTERVAL), time.Second*60)
 
 	udpHandler := dns.NewServeMux()
 	udpHandler.HandleFunc(".", dnsHandle)
@@ -50,11 +50,11 @@ func ListenAndServe(address string, inDoor []string, byPass []string) {
 }
 
 func removeRecord(qname string) {
-	cdns.Delete(qname)
+	Cdns.Delete(qname)
 }
 
 func getRecord(qname string) (dnsRecord, bool) {
-	r, ok := cdns.Get(qname)
+	r, ok := Cdns.Get(qname)
 	if ok {
 		rd, ok := r.(dnsRecord)
 		return rd, ok
@@ -63,7 +63,7 @@ func getRecord(qname string) (dnsRecord, bool) {
 }
 
 func addRecord(qname string, record dnsRecord) {
-	cdns.Add(qname, record, DNS_CACHE_INTERVAL*time.Second)
+	Cdns.Add(qname, record, DNS_CACHE_INTERVAL*time.Second)
 }
 
 func mutilResolve(server []string, req *dns.Msg, recvChan chan<- *dns.Msg) {

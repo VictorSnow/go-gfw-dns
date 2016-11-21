@@ -16,5 +16,7 @@
 	},
 	"BlackIpList": [],
 	"TunnelPassword": "victor snow",
-	"ForceRemote": false
+	"ForceRemote": false,
+	"AdminAddr": "0.0.0.0:8090",
+	"DebugAddr": "0.0.0.0:8099"
 }
