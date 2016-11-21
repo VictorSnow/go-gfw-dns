@@ -101,6 +101,25 @@ func mutilResolve(server []string, req *dns.Msg, recvChan chan<- *dns.Msg) {
 }
 
 func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
+	// 修改ttl
+	for _, a := range record.msg.Answer {
+		if a.Header().Ttl < 600 {
+			a.Header().Ttl = 600
+		}
+	}
+
+	for _, a := range record.msg.Extra {
+		if a.Header().Ttl < 600 {
+			a.Header().Ttl = 600
+		}
+	}
+
+	for _, a := range record.msg.Ns {
+		if a.Header().Ttl < 600 {
+			a.Header().Ttl = 600
+		}
+	}
+
 	w.WriteMsg(record.msg)
 	return
 }
@@ -112,9 +131,16 @@ func inBlackIpList(ip net.IP) bool {
 }
 
 func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
+
 	qname := req.Question[0].Name
 	qtype, _ := dns.TypeToString[req.Question[0].Qtype]
 	cacheKey := qname + qtype
+
+	//s := time.Now().Nanosecond()
+	//defer func() {
+	//	e := time.Now().Nanosecond()
+	//	log.Println(qname, (e-s)/1000000)
+	//}()
 
 	servers := inDoorServers
 
@@ -122,25 +148,10 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 		servers = bypassServers
 	}
 
-	// only handle  A record and AAAA record, standard query
-	if (req.Question[0].Qtype == dns.TypeA || req.Question[0].Qtype == dns.TypeAAAA) &&
-		req.Opcode == dns.OpcodeQuery {
-		if record, ok := getRecord(cacheKey); ok {
-			if record.Expire.After(time.Now()) {
-				responseRecord(w, req, record)
-			}
+	if record, ok := getRecord(cacheKey); ok {
+		if record.Expire.After(time.Now()) {
+			responseRecord(w, req, record)
 		}
-	} else {
-		recvChan := make(chan *dns.Msg, 1)
-		go mutilResolve(servers, req, recvChan)
-
-		select {
-		case r := <-recvChan:
-			if r != nil {
-				w.WriteMsg(r)
-			}
-		}
-		return
 	}
 
 	recvChan := make(chan *dns.Msg, 1)
