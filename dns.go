@@ -133,11 +133,13 @@ func inBlackIpList(ip net.IP) bool {
 func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 	qname := req.Question[0].Name
 	qtype, _ := dns.TypeToString[req.Question[0].Qtype]
-	cacheKey := qname + qtype
+	qclass, _ := dns.ClassToString[req.Question[0].Qclass]
+	cacheKey := qname + qtype + qclass
 
 	if record, ok := getRecord(cacheKey); ok {
 		if record.Expire.After(time.Now()) {
 			responseRecord(w, req, record)
+			return
 		}
 	}
 
