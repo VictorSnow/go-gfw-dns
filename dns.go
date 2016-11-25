@@ -139,8 +139,15 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 	qclass, _ := dns.ClassToString[req.Question[0].Qclass]
 	cacheKey := qname + qtype + qclass
 
+	sTime := time.Now().Nanosecond()
+	defer func() {
+		eTime := time.Now().Nanosecond()
+		debug("Success for ", qname, "for", (eTime-sTime)/1000000)
+	}()
+
 	if record, ok := getRecord(cacheKey); ok {
 		if record.Expire.After(time.Now()) {
+			debug("dns query hit cache for ", qname)
 			responseRecord(w, req, record)
 			return
 		}
@@ -149,6 +156,7 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 	servers := inDoorServers
 	if inHost(qname) || ServerConfig.ForceRemote {
 		servers = bypassServers
+		debug("dns for ", qname, " bypass", bypassServers)
 	}
 
 	recvChan := make(chan *dns.Msg, 1)
@@ -163,6 +171,7 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 		}
 	case <-time.After(DNS_TIMEOUT):
 		if record, ok := getRecord(cacheKey); ok {
+			debug("dns query timeout with cache", qname)
 			responseRecord(w, req, record)
 		}
 		break

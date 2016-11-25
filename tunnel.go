@@ -27,6 +27,7 @@ func tunnelClientServe(address string, dest string) {
 			continue
 		}
 
+		debug("handle new udp conn", addr)
 		go tunnel(sConn, addr, daddr, buff, n)
 	}
 }

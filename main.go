@@ -20,6 +20,7 @@ type Config struct {
 	DebugAddr      string
 	TunnelPassword string
 	ForceRemote    bool
+	Debug          bool
 }
 
 var ServerConfig Config
