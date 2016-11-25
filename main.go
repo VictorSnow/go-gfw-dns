@@ -41,7 +41,6 @@ func main() {
 		return
 	}
 
-	ServerConfig := Config{}
 	err := json.NewDecoder(f).Decode(&ServerConfig)
 	if err != nil {
 		log.Println("解析配置文件错误", err)
