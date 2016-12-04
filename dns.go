@@ -139,9 +139,9 @@ func dnsHandle(w dns.ResponseWriter, req *dns.Msg) {
 	qclass, _ := dns.ClassToString[req.Question[0].Qclass]
 	cacheKey := qname + qtype + qclass
 
-	sTime := time.Now().Nanosecond()
+	sTime := time.Now().UnixNano()
 	defer func() {
-		eTime := time.Now().Nanosecond()
+		eTime := time.Now().UnixNano()
 		debug("Success for ", qname, "for", (eTime-sTime)/1000000)
 	}()
 
