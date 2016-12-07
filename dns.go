@@ -119,7 +119,7 @@ func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
 	if len(Ans) != 0 {
 		record.msg.Answer = Ans
 	} else {
-		log.Println("没有发现ipv4的地址", req.Question[0].Name)
+		debug("没有发现ipv4的地址", req.Question[0].Name)
 	}
 
 	for _, a := range record.msg.Extra {
