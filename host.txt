@@ -6175,3 +6175,8 @@ android.com
 googlesyndication.com
 google.com
 google.com
+id.google.com.hk
+www.youtube.com
+i.ytimg.com
+instagramstatic-a.akamaihd.net
+api.github.com
