@@ -105,10 +105,21 @@ func responseRecord(w dns.ResponseWriter, req *dns.Msg, record dnsRecord) {
 	record.msg.Id = req.MsgHdr.Id
 
 	// 修改ttl
+	// 仅使用ipv4
+	Ans := []dns.RR{}
 	for _, a := range record.msg.Answer {
 		if a.Header().Ttl < 600 {
 			a.Header().Ttl = 600
 		}
+		if _, ok := a.(*dns.A); ok {
+			Ans = append(Ans, a)
+		}
+	}
+
+	if len(Ans) != 0 {
+		record.msg.Answer = Ans
+	} else {
+		log.Println("没有发现ipv4的地址", req.Question[0].Name)
 	}
 
 	for _, a := range record.msg.Extra {
